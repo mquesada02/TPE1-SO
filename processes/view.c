@@ -7,16 +7,18 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#define rwxrwxrwx 0777
-
+#include "shmADT.h"
 
 #define BUFFERSIZE 50
 #define PARAMETROS 1 
-int main(int argc, char* argv[]){ //el parametro es el nombre de la memoria comparitda
+int main(int argc, char* argv[]){ //los parametros son el nombre de la memoria comparitda y el tamaño
 
-     int shm_fd = shm_open(argv[1], O_RDWR, rwxrwxrwx);
+    int shm_fd = shm_open(argv[1], O_RDWR, RWXRWXRWX);
+    char* buffer = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
 
-      int pipefd[2]; 
+
+    /*
+    int pipefd[2]; 
     if (pipe(pipefd) == -1) {
         perror("pipe");
         exit(-1);
@@ -57,8 +59,7 @@ int main(int argc, char* argv[]){ //el parametro es el nombre de la memoria comp
             wait(NULL);
         }
     }
-
-    
+    */    
 
     return 0;
 }

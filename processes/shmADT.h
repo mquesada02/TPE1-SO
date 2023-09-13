@@ -1,0 +1,2 @@
+#define SHM_SIZE 1024
+#define RWXRWXRWX 0777

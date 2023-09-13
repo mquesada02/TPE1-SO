@@ -7,6 +7,7 @@
 #include <sys/select.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include "shmADT.h"
 
 #define ERROR -1
 
@@ -15,10 +16,6 @@
 typedef enum {READ, WRITE} mode;
 
 #define SHM_NAME "/app_view_shm"
-#define SHM_SIZE 1024
-#define rwxrwxrwx 0777
-
-
 
 char* createSHM(char* shm_name, int size);
 
@@ -29,6 +26,7 @@ void createSlave(int slaveID, int *slaveREADPipeFDs[], int *slaveWRITEPipeFDs[],
 int main(int argc, char* argv[]) {
 
     char* buffer = createSHM(SHM_NAME, SHM_SIZE);
+    wait(2);
     printf("%s", SHM_NAME); //lo envio a la salida estandr -> view lo recibe por pipe, o por argumento
                            // select?
     
@@ -50,11 +48,14 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+
 char* createSHM(char* shm_name, int size){
-    int shm_fd = shm_open("sharedMem", O_CREAT | O_RDWR, rwxrwxrwx);
+    int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, rwxrwxrwx);
     ftruncate(shm_fd, size);
     return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
 }
+
+
 /*  Crea 2 pipes para el READ y WRITE amount veces. Cierra ambos FDs en los dos casos. */
 void createPipes(int amount, int *READ[], int *WRITE[]) {
     for(int i=0; i<amount;i++) {
