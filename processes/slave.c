@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define TRUE 1
+
 #define MAX_FILE_LEN 100
 #define MD5_LEN 32
 #define MAX_PID_LEN 16
@@ -19,21 +21,21 @@ int main(int argc, char* argv[]) {
     FILE * stream = NULL;
     char buffer[BUFFER_MAX_SIZE];
     char pidbuff[MAX_PID_LEN] = " - "; // empiezo a escribir en la posición 3 (zero indexed)
-    for (int i=1,j; i<argc; i++){
-        char cmd[MAX_FILE_LEN] = "md5sum ";
-        for(j=0; argv[i][j] && MD5SUM_LEN+j < MAX_FILE_LEN; j++) {
-            cmd[MD5SUM_LEN+j] = argv[i][j];
-            buffer[j] = argv[i][j];
+
+    char cmd[MAX_FILE_LEN] = "md5sum ";
+    int j;
+    //while(TRUE) {
+        read(STDIN_FILENO,buffer,BUFFER_MAX_SIZE);
+        for(j=0;buffer[j] && MD5SUM_LEN+j < MAX_FILE_LEN; j++) {
+            cmd[MD5SUM_LEN+j] = buffer[j];
         }
         cmd[MD5SUM_LEN+j] = '\0';
         buffer[j++] = ' ';
         buffer[j++] = '-';
         buffer[j++] = ' ';
-        // en buffer + j * sizeof(char) está la primera posición donde podría guardase el stream
-        
-        strcat(cmd," | cut -b -32"); // current command until this line: md5sum filename | cut -b -32
-                                        // returns only md5hash + '\n'
-        stream = popen(cmd,"r");
+        // en pipebuff + j * sizeof(char) está la primera posición donde podría guardase el stream
+        strcat(cmd," | cut -b -32");
+        stream = popen(cmd,"r");   
         fgets(buffer+j*sizeof(char),MD5_LEN+1,stream);
         // como termina en '\n', el fgets agrega un '\0' en la última posición
         // por lo tanto, el '\0' está en la posición (j+33) de buffer
@@ -41,6 +43,30 @@ int main(int argc, char* argv[]) {
         strcat(buffer,pidbuff);
         write(1, buffer,BUFFER_MAX_SIZE);
         pclose(stream);
-    }
+
+    //}
+    //for (int i=1,j; i<argc; i++){
+    //    
+    //    for(j=0; argv[i][j] && MD5SUM_LEN+j < MAX_FILE_LEN; j++) {
+    //        cmd[MD5SUM_LEN+j] = argv[i][j];
+    //        buffer[j] = argv[i][j];
+    //    }
+    //    cmd[MD5SUM_LEN+j] = '\0';
+    //    buffer[j++] = ' ';
+    //    buffer[j++] = '-';
+    //    buffer[j++] = ' ';
+    //    // en buffer + j * sizeof(char) está la primera posición donde podría guardase el stream
+    //    
+    //    strcat(cmd," | cut -b -32"); // current command until this line: md5sum filename | cut -b -32
+    //                                    // returns only md5hash + '\n'
+    //    stream = popen(cmd,"r");
+    //    fgets(buffer+j*sizeof(char),MD5_LEN+1,stream);
+    //    // como termina en '\n', el fgets agrega un '\0' en la última posición
+    //    // por lo tanto, el '\0' está en la posición (j+33) de buffer
+    //    sprintf(pidbuff+3,"%d\n",getpid());
+    //    strcat(buffer,pidbuff);
+    //    write(1, buffer,BUFFER_MAX_SIZE);
+    //    pclose(stream);
+    //}
     return 0;
 }
