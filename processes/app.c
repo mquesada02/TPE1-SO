@@ -18,31 +18,39 @@ typedef enum {READ, WRITE} mode;
 #define SHM_SIZE 1024
 #define rwxrwxrwx 0777
 
+typedef struct pipefd {
+        int slaveREADPipeFDs[2];
+        int slaveWRITEPipeFDs[2];
+        pid_t pid;
+    } pipefd;
 
 
 char* createSHM(char* shm_name, int size);
 
-void createPipes(int numberOfSlaves, int *slaveREADPipeFDs[], int *slaveWRITEPipeFDs[]);
+void closeForkedFDs(int slaveID, pipefd slaves[]);
 
-void createSlave(int slaveID, int *slaveREADPipeFDs[], int *slaveWRITEPipeFDs[], pid_t * slavesPIDs);
+void createSlave(int slaveID, pipefd slaves[]);
+
+void createSlaves(int numberOfSlaves, pipefd slaves[]);
 
 int main(int argc, char* argv[]) {
 
     char* buffer = createSHM(SHM_NAME, SHM_SIZE);
     printf("%s", SHM_NAME); //lo envio a la salida estandr -> view lo recibe por pipe, o por argumento
                            // select?
-    
     int filesToProcess = argc-1;                    // cantidad de archivos
     int numberOfSlaves = filesToProcess/4+1;        // número elegido arbitrariamente
 
-    pid_t slavesPIDs[numberOfSlaves];               // PIDs de los esclavos a generar
-
-    int slaveREADPipeFDs[2][numberOfSlaves];        // pipe que conecta al STDIN del slave
-    int slaveWRITEPipeFDs[2][numberOfSlaves];       // pipe que conecta al STDOUT del slave
-
+    pipefd slaves[numberOfSlaves];
     
-    createPipes(numberOfSlaves,slaveREADPipeFDs,slaveWRITEPipeFDs);             // crea y cierra los pipes necesarios
-    createSlaves(numberOfSlaves,slaveREADPipeFDs,slaveWRITEPipeFDs,slavesPIDs); // crea y conecta los slaves necesarios
+    createSlaves(numberOfSlaves,slaves); // crea y conecta los slaves necesarios
+
+    write(slaves[0].slaveREADPipeFDs[WRITE],argv[argc-1],32);
+    char buff[128];
+    read(slaves[0].slaveWRITEPipeFDs[READ],buff,128);
+    write(STDOUT_FILENO,buff,128);
+
+
 
     // select for slaveWRITEPipeFDs and maybe slaveREADPipeFDs (consumed?)
 
@@ -55,35 +63,28 @@ char* createSHM(char* shm_name, int size){
     ftruncate(shm_fd, size);
     return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
 }
-/*  Crea 2 pipes para el READ y WRITE amount veces. Cierra ambos FDs en los dos casos. */
-void createPipes(int amount, int *READ[], int *WRITE[]) {
-    for(int i=0; i<amount;i++) {
-        if (pipe(READ[i])==ERROR || pipe(WRITE[i])==ERROR) {
+
+
+void createSlaves(int numberOfSlaves, pipefd slaves[]) {
+    for(int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
+        createSlave(slaveID,slaves);
+    }
+    return;
+}
+
+void closeForkedFDs(int slaveID, pipefd slaves[]) {
+    for(int i=0;i<slaveID;i++) {
+        close(slaves[i].slaveREADPipeFDs[WRITE]);
+        close(slaves[i].slaveWRITEPipeFDs[READ]);
+    }
+}
+
+void createSlave(int slaveID, pipefd slaves[]) {
+    if (pipe(slaves[slaveID].slaveREADPipeFDs)==ERROR || pipe(slaves[slaveID].slaveWRITEPipeFDs)==ERROR) {
             perror("Pipe error.");
             exit(ERROR);
-        }
-        close(READ[i][0]);
-        close(READ[i][1]);
-        close(WRITE[i][0]);
-        close(WRITE[i][1]); 
     }
-    return;
-}
 
-/* Conecta el pipe en el modo MODE (READ / WRITE) en el fd myfd del proceso */
-void linkPipe(int myfd, int pipeid, int *pipes[], mode MODE) {
-    dup2(myfd,pipes[MODE][pipeid]);
-    return;
-}
-
-void createSlaves(int numberOfSlaves, int *slaveREADPipeFDs[], int *slaveWRITEPipeFDs[], pid_t * slavesPIDs) {
-    for(int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
-        createSlave(slaveID,slaveREADPipeFDs,slaveWRITEPipeFDs,slavesPIDs);
-    }
-    return;
-}
-
-void createSlave(int slaveID, int *slaveREADPipeFDs[], int *slaveWRITEPipeFDs[], pid_t * slavesPIDs) {
     pid_t forkPID = fork();
     switch(forkPID) {
         case ERROR:
@@ -91,12 +92,28 @@ void createSlave(int slaveID, int *slaveREADPipeFDs[], int *slaveWRITEPipeFDs[],
             exit(ERROR);
         case SLAVE:
             /* Slave's process */
-            linkPipe(STDOUT_FILENO, slaveID, slaveWRITEPipeFDs, WRITE);
-            linkPipe(STDIN_FILENO, slaveID, slaveREADPipeFDs,READ);
+            closeForkedFDs(slaveID, slaves);
+            close(slaves[slaveID].slaveREADPipeFDs[WRITE]);
+            close(slaves[slaveID].slaveWRITEPipeFDs[READ]);
+
+            close(STDOUT_FILENO);
+            dup(slaves[slaveID].slaveWRITEPipeFDs[WRITE]);
+            close(STDIN_FILENO);
+            dup(slaves[slaveID].slaveREADPipeFDs[READ]);
+
+            execve("./slave",NULL,NULL);
+            exit(1);
             break;
         default:
             /* Parent's process */
-            slavesPIDs[slaveID] = forkPID;
+            close(slaves[slaveID].slaveREADPipeFDs[READ]);
+            close(slaves[slaveID].slaveWRITEPipeFDs[WRITE]);
+            slaves[slaveID].pid = forkPID;
+            /* le manda la carga inicial de archivos */
+            // write(slaveREADPipeFDs[WRITE][slaveID],argv[argc-1],32);
+            // char buffer[128];
+            // read(slaveWRITEPipeFDs[READ][slaveID],buffer,128);
+            // printf(buffer);
     }
     return;
 }
