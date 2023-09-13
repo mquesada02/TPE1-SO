@@ -7,16 +7,19 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <semaphore.h>
 #include "shmADT.h"
 
 #define BUFFERSIZE 50
 #define PARAMETROS 1 
 int main(int argc, char* argv[]){ //los parametros son el nombre de la memoria comparitda y el tamaño
 
-    int shm_fd = shm_open(argv[1], O_RDWR, RWXRWXRWX);
+    int shm_fd = shm_open(argv[1], O_RDWR, S_IRWXG);
     char* buffer = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    sem_t * write_count = sem_open(SEM_WC, 0);
+    sem_t * mutex = sem_open(SEM_MUTEX, 0);
 
-
+    
     /*
     int pipefd[2]; 
     if (pipe(pipefd) == -1) {

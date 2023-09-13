@@ -7,6 +7,7 @@
 #include <sys/select.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <semaphore.h>
 #include "shmADT.h"
 
 #define ERROR -1
@@ -16,15 +17,12 @@
 typedef enum {READ, WRITE} mode;
 
 #define SHM_NAME "/app_view_shm"
-#define SHM_SIZE 1024
-#define rwxrwxrwx 0777
 
 typedef struct pipefd {
         int slaveREADPipeFDs[2];
         int slaveWRITEPipeFDs[2];
         pid_t pid;
     } pipefd;
-
 
 char* createSHM(char* shm_name, int size);
 
@@ -36,10 +34,14 @@ void createSlaves(int numberOfSlaves, pipefd slaves[]);
 
 int main(int argc, char* argv[]) {
 
-    char* buffer = createSHM(SHM_NAME, SHM_SIZE);
+    char * buffer = createSHM(SHM_NAME, SHM_SIZE);
+    sem_t * write_count = sem_open(SEM_WC, O_CREAT, S_IRWXG, 0);
+    sem_t * mutex = sem_open(SEM_MUTEX, O_CREAT, S_IRWXG, 1);
     wait(2);
     printf("%s", SHM_NAME); //lo envio a la salida estandr -> view lo recibe por pipe, o por argumento
-                           // select?
+                            //select?
+
+
     int filesToProcess = argc-1;                    // cantidad de archivos
     int numberOfSlaves = filesToProcess/4+1;        // número elegido arbitrariamente
 
@@ -53,7 +55,6 @@ int main(int argc, char* argv[]) {
     write(STDOUT_FILENO,buff,128);
 
 
-
     // select for slaveWRITEPipeFDs and maybe slaveREADPipeFDs (consumed?)
 
 
@@ -62,7 +63,7 @@ int main(int argc, char* argv[]) {
 
 
 char* createSHM(char* shm_name, int size){
-    int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, rwxrwxrwx);
+    int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, RWXRWXRWX);
     ftruncate(shm_fd, size);
     return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
 }
