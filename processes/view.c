@@ -14,12 +14,17 @@
 #define PARAMETROS 1 
 int main(int argc, char* argv[]){ //los parametros son el nombre de la memoria comparitda y el tamaño
 
-    int shm_fd = shm_open(argv[1], O_RDWR, S_IRWXG);
-    char* buffer = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    shmADT buffer = openSHM(argv[1]);
     sem_t * write_count = sem_open(SEM_WC, 0);
     sem_t * mutex = sem_open(SEM_MUTEX, 0);
+    sem_t * mutex_rc = 1; //para que un read a la vez modifique rc (read count) y no se interrumpa justo entre la modificacion y el if
 
-    
+    int rc = 0;
+
+    while (get_files_left){ //los readers tienen que poder leer varios a la vez     
+
+    }
+
     /*
     int pipefd[2]; 
     if (pipe(pipefd) == -1) {

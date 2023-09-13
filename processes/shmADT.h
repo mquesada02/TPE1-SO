@@ -1,7 +1,18 @@
-#define RWXRWXRWX 0777
 #define SHM_SIZE 1024
 #define SEM_WC "/semaphore_wc"
 #define SEM_MUTEX "/semaphore_mutex"
+
+typedef struct shmCDT* shmADT;
+
+shmADT createSHM(char* shm_name);
+
+shmADT openSHM(char*shm_name);
+
+void set_file_amount(shmADT buffer, int amount);
+
+void file_read(shmADT buffer);
+
+int get_files_left(shmADT buffer);
 
 /*
 recibe como argumento la direccion del buffer de la shm y un string (null-terminated) de lo que quiere escribir

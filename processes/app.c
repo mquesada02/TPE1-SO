@@ -24,7 +24,7 @@ typedef struct pipefd {
         pid_t pid;
     } pipefd;
 
-char* createSHM(char* shm_name, int size);
+shmADT createSHM(char* shm_name);
 
 void closeForkedFDs(int slaveID, pipefd slaves[]);
 
@@ -34,7 +34,7 @@ void createSlaves(int numberOfSlaves, pipefd slaves[]);
 
 int main(int argc, char* argv[]) {
 
-    char * buffer = createSHM(SHM_NAME, SHM_SIZE);
+    shmADT buffer = createSHM(SHM_NAME);
     sem_t * write_count = sem_open(SEM_WC, O_CREAT, S_IRWXG, 0);
     sem_t * mutex = sem_open(SEM_MUTEX, O_CREAT, S_IRWXG, 1);
     wait(2);
@@ -60,14 +60,6 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
-
-char* createSHM(char* shm_name, int size){
-    int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, RWXRWXRWX);
-    ftruncate(shm_fd, size);
-    return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-}
-
 
 void createSlaves(int numberOfSlaves, pipefd slaves[]) {
     for(int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
