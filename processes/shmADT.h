@@ -1,6 +1,6 @@
 #define SHM_SIZE 1024
 #define SEM_WC "/semaphore_wc"
-#define SEM_MUTEX "/semaphore_mutex"
+//#define SEM_MUTEX "/semaphore_mutex"
 
 typedef struct shmCDT* shmADT;
 

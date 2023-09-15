@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
 
     shmADT buffer = createSHM(SHM_NAME);
     sem_t * write_count = sem_open(SEM_WC, O_CREAT, S_IRWXG, 0);
-    sem_t * mutex = sem_open(SEM_MUTEX, O_CREAT, S_IRWXG, 1);
+    //sem_t * mutex = sem_open(SEM_MUTEX, O_CREAT, S_IRWXG, 1);
     wait(2);
     printf("%s", SHM_NAME); //lo envio a la salida estandr -> view lo recibe por pipe, o por argumento
                             //select?
@@ -44,6 +44,8 @@ int main(int argc, char* argv[]) {
 
     int filesToProcess = argc-1;                    // cantidad de archivos
     int numberOfSlaves = filesToProcess/4+1;        // número elegido arbitrariamente
+
+    set_file_amount(buffer, filesToProcess);
 
     pipefd slaves[numberOfSlaves];
     
@@ -53,10 +55,6 @@ int main(int argc, char* argv[]) {
     char buff[128];
     read(slaves[0].slaveWRITEPipeFDs[READ],buff,128);
     write(STDOUT_FILENO,buff,128);
-
-
-    // select for slaveWRITEPipeFDs and maybe slaveREADPipeFDs (consumed?)
-
 
     return 0;
 }

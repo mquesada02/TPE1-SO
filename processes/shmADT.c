@@ -1,5 +1,6 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include "shmADT.h"
 
 typedef struct shmCDT{
@@ -11,13 +12,22 @@ shmADT createSHM(char* shm_name){
     int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, S_IRWXG);
     ftruncate(shm_fd, sizeof(shmCDT));
     shmADT toReturn = mmap(NULL, sizeof(shmCDT), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (toReturn == MAP_FAILED) {
+        perror("Error creating shared memory");
+        exit(errno);
+    }
     toReturn->amount_files = 0; //para que si llegara a por alguna razon intentar leer antes de que se dijera la cantidad de files no lea cualquier cosa
     return toReturn;
 }
 
 shmADT openSHM(char*shm_name){
     int shm_fd = shm_open(shm_name, O_RDWR, S_IRWXG);
-    return mmap(NULL, sizeof(shmCDT), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    shmADT toReturn = mmap(NULL, sizeof(shmCDT), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (toReturn == MAP_FAILED) {
+        perror("Error accessing shared memory");
+        exit(errno);
+    }
+    return toReturn;
 }
 
 void set_file_amount(shmADT buffer, int amount){
