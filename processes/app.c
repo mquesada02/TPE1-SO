@@ -7,6 +7,7 @@
 #include <sys/select.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <string.h>
 
 #include "../headers/slaves.h"
 
@@ -21,14 +22,15 @@ typedef struct pipefd {
 } pipefd;
 
 int maximumFD = 0;
+char * parameters[] = {"./slave","\0"};
 
 char* createSHM(char* shm_name, int size);
 
-void closeForkedFDs(int slaveID, pipefd slaves[]);
+void closeForkedFDs(int slaveID, pipefd * slaves);
 
-void createSlave(int slaveID, pipefd slaves[], fd_set * slaveOUT, fd_set * slaveIN);
+void createSlave(int slaveID, pipefd * slaves, fd_set * slaveOUT, fd_set * slaveIN);
 
-void createSlaves(int numberOfSlaves, pipefd slaves[], fd_set * slaveOUT, fd_set * slaveIN);
+void createSlaves(int numberOfSlaves, pipefd * slaves, fd_set * slaveOUT, fd_set * slaveIN);
 
 int main(int argc, char* argv[]) {
 
@@ -42,43 +44,74 @@ int main(int argc, char* argv[]) {
 
     fd_set md5Ready;
     fd_set filesReady;
-
+    
     FD_ZERO(&md5Ready);
     FD_ZERO(&filesReady);
 
     createSlaves(numberOfSlaves,slaves, &md5Ready, &filesReady); // crea y conecta los slaves necesarios
 
-    FILE * output = fopen("../output.txt","a+");// abro el archivo del output
+    FILE * output = fopen("../output.txt","w");// abro el archivo del output
     int argvIndex = 1;
 
     /* Enviamos la carga inicial. Por cada slave, enviamos SLAVE_INITIAL_CAPACITY archivos (no va a enviar
        todos, y aumenta el argvIndex)
      */
-    for (int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
-        for(int file=0;file<SLAVE_INITIAL_CAPACITY;file++) {
-            write(slaves[slaveID].slaveREADPipeFDs[WRITE],argv[argvIndex++],MAX_FILE_LEN);
+
+    
+    for(int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
+        for(int file=0; file<SLAVE_INITIAL_CAPACITY;file++) {
+            write(slaves[slaveID].slaveREADPipeFDs[WRITE],argv[argvIndex],strlen(argv[argvIndex])+1);
+            argvIndex++;
         }
     }
+
     char md5buffer[BUFFER_MAX_SIZE];
-    while(argvIndex<argc) {
 
-        select(maximumFD,&md5Ready,&filesReady,NULL,NULL); // sleep until fd ready (read or write)
-        /* hay en total numberOfSlaves fds en cada fd_set */
-        for(int slaveID=0;slaveID<numberOfSlaves && argvIndex<argc;slaveID++) {
-            if (FD_ISSET(slaves[slaveID].slaveWRITEPipeFDs[READ],&md5Ready)) {
-                /* el slave envió el md5 */
-                read(slaves[slaveID].slaveWRITEPipeFDs[READ],md5buffer,BUFFER_MAX_SIZE);
-                fwrite(md5buffer,sizeof(char),BUFFER_MAX_SIZE,output);
+    /*
+    for(int i=0;i<numberOfSlaves;i++) {
+        fcntl(slaves[i].slaveWRITEPipeFDs[READ], F_SETFL, fcntl(slaves[i].slaveWRITEPipeFDs[READ], F_GETFL, 0) | O_NONBLOCK);
+        fcntl(slaves[i].slaveREADPipeFDs[WRITE], F_SETFL, fcntl(slaves[i].slaveREADPipeFDs[WRITE], F_GETFL, 0) | O_NONBLOCK);
+    }
+
+    
+    while(argvIndex<=filesToProcess) {
+        for(int i=0;i<numberOfSlaves;i++) {
+            read(slaves[i].slaveWRITEPipeFDs[READ],md5buffer,BUFFER_MAX_SIZE);
+            fputs(md5buffer,output);
+            if (argvIndex<=filesToProcess) {
+                write(slaves[i].slaveREADPipeFDs[WRITE],argv[argvIndex],strlen(argv[argvIndex])+1);
+                argvIndex++;
             }
-
-            if (FD_ISSET(slaves[slaveID].slaveREADPipeFDs[WRITE],&filesReady)) {
-                /* el slave ya consumió todos los archivos enviados. Le enviamos uno nuevo */
-                write(slaves[slaveID].slaveREADPipeFDs[WRITE],argv[argvIndex++],MAX_FILE_LEN);
-            }   
         }
     }
+    */
+
+    
+    while(argvIndex<=filesToProcess) { // hasta que se escribieron todos los files
+        for (int i=0;i<numberOfSlaves;i++) {
+            FD_SET(slaves[i].slaveWRITEPipeFDs[READ],&md5Ready);
+            FD_SET(slaves[i].slaveREADPipeFDs[WRITE],&filesReady);
+        }
+        select(maximumFD,&md5Ready,&filesReady,NULL,NULL); // sleep until fd ready (read or write)
+        // hay en total numberOfSlaves fds en cada fd_set 
+        for(int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
+            if (FD_ISSET(slaves[slaveID].slaveWRITEPipeFDs[READ],&md5Ready)) {
+                // el slave envió el md5 
+                read(slaves[slaveID].slaveWRITEPipeFDs[READ],md5buffer,BUFFER_MAX_SIZE);
+                fputs(md5buffer,output);
+            }
+            if (FD_ISSET(slaves[slaveID].slaveREADPipeFDs[WRITE],&filesReady) && argvIndex<=filesToProcess) {
+                write(slaves[slaveID].slaveREADPipeFDs[WRITE],argv[argvIndex],strlen(argv[argvIndex])+1);
+                argvIndex++;
+            }
+            
+        }
+    }
+    
+    
     /* ya no quedan más archivos. Cerramos los pipes */
     for(int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
+        close(slaves[slaveID].slaveREADPipeFDs[READ]);
         close(slaves[slaveID].slaveREADPipeFDs[WRITE]);
     }
     fclose(output);
@@ -94,21 +127,21 @@ char* createSHM(char* shm_name, int size){
 
 
 
-void createSlaves(int numberOfSlaves, pipefd slaves[], fd_set * slaveOUT, fd_set * slaveIN) {
+void createSlaves(int numberOfSlaves, pipefd * slaves, fd_set * slaveOUT, fd_set * slaveIN) {
     for(int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
         createSlave(slaveID,slaves,slaveOUT,slaveIN);
     }
     return;
 }
 
-void closeForkedFDs(int slaveID, pipefd slaves[]) {
+void closeForkedFDs(int slaveID, pipefd * slaves) {
     for(int i=0;i<slaveID;i++) {
         close(slaves[i].slaveREADPipeFDs[WRITE]);
         close(slaves[i].slaveWRITEPipeFDs[READ]);
     }
 }
 
-void createSlave(int slaveID, pipefd slaves[], fd_set * slaveOUT, fd_set * slaveIN) {
+void createSlave(int slaveID, pipefd * slaves, fd_set * slaveOUT, fd_set * slaveIN) {
     if (pipe(slaves[slaveID].slaveREADPipeFDs)==ERROR || pipe(slaves[slaveID].slaveWRITEPipeFDs)==ERROR) {
             perror("Pipe error.");
             exit(ERROR);
@@ -122,24 +155,27 @@ void createSlave(int slaveID, pipefd slaves[], fd_set * slaveOUT, fd_set * slave
         case SLAVE:
             /* Slave's process */
             closeForkedFDs(slaveID, slaves);
-            close(slaves[slaveID].slaveREADPipeFDs[WRITE]);
-            close(slaves[slaveID].slaveWRITEPipeFDs[READ]);
+            //close(slaves[slaveID].slaveREADPipeFDs[WRITE]);
+            //close(slaves[slaveID].slaveWRITEPipeFDs[READ]);
 
-            close(STDOUT_FILENO);
-            dup(slaves[slaveID].slaveWRITEPipeFDs[WRITE]);
             close(STDIN_FILENO);
             dup(slaves[slaveID].slaveREADPipeFDs[READ]);
-            execve("./slave",NULL,NULL);
+            close(STDOUT_FILENO);
+            dup(slaves[slaveID].slaveWRITEPipeFDs[WRITE]);
+
+            execv("slave",parameters);
             exit(1);
-            break;
+            
         default:
             /* Parent's process */
             close(slaves[slaveID].slaveREADPipeFDs[READ]);
             close(slaves[slaveID].slaveWRITEPipeFDs[WRITE]);
             FD_SET(slaves[slaveID].slaveWRITEPipeFDs[READ],slaveOUT);
-            FD_SET(slaves[slaveID].slaveREADPipeFDs[WRITE],slaveIN);
             if (slaves[slaveID].slaveWRITEPipeFDs[READ]>maximumFD)
                 maximumFD = slaves[slaveID].slaveWRITEPipeFDs[READ];
+            FD_SET(slaves[slaveID].slaveREADPipeFDs[WRITE],slaveIN);
+            if (slaves[slaveID].slaveREADPipeFDs[WRITE]>maximumFD)
+                maximumFD = slaves[slaveID].slaveREADPipeFDs[WRITE];
             slaves[slaveID].pid = forkPID;
 
     }
