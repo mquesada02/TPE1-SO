@@ -8,12 +8,13 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <string.h>
+#include <semaphore.h>
+#include <errno.h>
+#include "shmADT.h"
 
 #include "../headers/slaves.h"
 
 #define SHM_NAME "/app_view_shm"
-#define SHM_SIZE 1024
-#define rwxrwxrwx 0777
 
 typedef struct pipefd {
         int slaveREADPipeFDs[2];
@@ -24,7 +25,7 @@ typedef struct pipefd {
 int maximumFD = 0;
 char * parameters[] = {"./slave","\0"};
 
-char* createSHM(char* shm_name, int size);
+shmADT createSHM(char* shm_name);
 
 void closeForkedFDs(int slaveID, pipefd * slaves);
 
@@ -34,11 +35,22 @@ void createSlaves(int numberOfSlaves, pipefd * slaves, fd_set * slaveOUT, fd_set
 
 int main(int argc, char* argv[]) {
 
-    //char* buffer = createSHM(SHM_NAME, SHM_SIZE);
-    //printf("%s", SHM_NAME); //lo envio a la salida estandr -> view lo recibe por pipe, o por argumento
-                           // select?
+    shmADT buffer = createSHM(SHM_NAME);
+    if (buffer == MAP_FAILED) {
+        perror("Error creating shared memory");
+        exit(ERROR);
+    }
+    sem_t * write_count = sem_open(SEM_WC, O_CREAT, S_IRWXG, 0);
+    //sem_t * mutex = sem_open(SEM_MUTEX, O_CREAT, S_IRWXG, 1);
+    wait(2);
+    printf("%s", SHM_NAME); //lo envio a la salida estandr -> view lo recibe por pipe, o por argumento
+                            //select?
+
+
     int filesToProcess = argc-1;                    // cantidad de archivos
     int numberOfSlaves = filesToProcess/4+1;        // número elegido arbitrariamente
+
+    set_file_amount(buffer, filesToProcess);
 
     pipefd slaves[numberOfSlaves];
 
@@ -115,14 +127,13 @@ int main(int argc, char* argv[]) {
         close(slaves[slaveID].slaveREADPipeFDs[WRITE]);
     }
     fclose(output);
+    int close_ret = closeSHM(buffer);
+    if (close_ret < 0){
+        perror("Error cerrando la memoria compartida");
+        exit(ERROR);
+    }
 
     return 0;
-}
-
-char* createSHM(char* shm_name, int size){
-    int shm_fd = shm_open("sharedMem", O_CREAT | O_RDWR, rwxrwxrwx);
-    ftruncate(shm_fd, size);
-    return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
 }
 
 

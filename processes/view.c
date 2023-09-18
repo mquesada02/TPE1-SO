@@ -7,58 +7,40 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#define rwxrwxrwx 0777
+#include <semaphore.h>
+#include "shmADT.h"
 
-
-#define BUFFERSIZE 50
 #define PARAMETROS 1 
-int main(int argc, char* argv[]){ //el parametro es el nombre de la memoria comparitda
+#define LINESIZE 100
+#define ERROR -1
+int main(int argc, char* argv[]){ //los parametros son el nombre de la memoria comparitda y el tamaño
 
-     int shm_fd = shm_open(argv[1], O_RDWR, rwxrwxrwx);
-
-      int pipefd[2]; 
-    if (pipe(pipefd) == -1) {
-        perror("pipe");
-        exit(-1);
+    shmADT buffer = openSHM(argv[1]);
+    if (buffer == MAP_FAILED) {
+        perror("Error accessing shared memory");
+        exit(ERROR);
     }
-    pid_t appPid = fork();
+    sem_t * write_count = sem_open(SEM_WC, 0);
+    //sem_t * mutex = sem_open(SEM_MUTEX, 0);
+    //sem_t * mutex_rc = 1; //para que un read a la vez modifique rc (read count) y no se interrumpa justo entre la modificacion y el if
 
-    if (appPid == -1) {
-        perror("fork");
-        exit(-1);
+    char data[LINESIZE];
+
+    //no es lo que normalmente pasa con readers y writers, pero en este caso en particular
+    //el writer nunca vuelve a escribir en el mismo lugar de memoria (va avanzando un puntero
+    //y llenando el buffer), y el reader no accede a ningun lugar de la memoria que no este
+    //escrito, por lo que reader y writer nunca se podrian "chocar" y no habria problema en
+    //que se lea y escriba en la memoria compartida a la vez
+    //lo que si generaria problema es que se quiera leer cuando no hay nada escrito, o que dos
+    //procesos quieran leer a la vez o dos quieran escribir a la vez, porque estarian levantando
+    //o escribiendo con el puntero informacion intercalada (aunque en este caso hay solo un proceso
+    //que escribe y uno que lee, por lo que el problema no se generaria)
+    while (get_files_left){ //hay solo un proceso que lee de la shm, entonces no habria problemas de intercalacion creeria
+        sem_wait(write_count);
+        read_data(buffer, data);
+        printf("%s", data);
+        file_read();
     }
-
-    if (appPid == 0) {  
-        close(pipefd[1]); 
-        dup2(pipefd[0], STDIN_FILENO);
-        close(pipefd[0]);
-        execl("./vista", "vista", (char *)NULL);
-        perror("Error al ejecutar vista");
-        
-    } else {  
-        close(pipefd[0]); 
-       
-        pid_t viewPid = fork(); 
-
-        if (viewPid == -1) {
-            perror("fork");
-            exit(-1);
-        }
-
-        if (viewPid == 0) { 
-            dup2(pipefd[1], STDOUT_FILENO);
-            close(pipefd[1]);
-            execl("./md5", "md5", argv[1], (char *)NULL);
-            perror("Error al ejecutar md5");
-            exit(-1);
-        } else { 
-            
-            wait(NULL);
-            wait(NULL);
-        }
-    }
-
-    
 
     return 0;
 }
