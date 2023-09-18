@@ -8,6 +8,8 @@ shmADT createSHM(char* shm_name);
 
 shmADT openSHM(char*shm_name);
 
+int closeSHM(char* buffer);
+
 void set_file_amount(shmADT buffer, int amount);
 
 void file_read(shmADT buffer);

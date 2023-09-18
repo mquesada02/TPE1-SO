@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <semaphore.h>
+#include <errno.h>
 #include "shmADT.h"
 
 #define ERROR -1
@@ -35,6 +36,10 @@ void createSlaves(int numberOfSlaves, pipefd slaves[]);
 int main(int argc, char* argv[]) {
 
     shmADT buffer = createSHM(SHM_NAME);
+    if (buffer == MAP_FAILED) {
+        perror("Error creating shared memory");
+        exit(ERROR);
+    }
     sem_t * write_count = sem_open(SEM_WC, O_CREAT, S_IRWXG, 0);
     //sem_t * mutex = sem_open(SEM_MUTEX, O_CREAT, S_IRWXG, 1);
     wait(2);
@@ -55,6 +60,12 @@ int main(int argc, char* argv[]) {
     char buff[128];
     read(slaves[0].slaveWRITEPipeFDs[READ],buff,128);
     write(STDOUT_FILENO,buff,128);
+
+    int close_ret = closeSHM(buffer);
+    if (close_ret < 0){
+        perror("Error cerrando la memoria compartida");
+        exit(ERROR);
+    }
 
     return 0;
 }

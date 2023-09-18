@@ -12,14 +12,17 @@
 
 #define PARAMETROS 1 
 #define LINESIZE 100
+#define ERROR -1
 int main(int argc, char* argv[]){ //los parametros son el nombre de la memoria comparitda y el tamaño
 
     shmADT buffer = openSHM(argv[1]);
+    if (buffer == MAP_FAILED) {
+        perror("Error accessing shared memory");
+        exit(ERROR);
+    }
     sem_t * write_count = sem_open(SEM_WC, 0);
     //sem_t * mutex = sem_open(SEM_MUTEX, 0);
     //sem_t * mutex_rc = 1; //para que un read a la vez modifique rc (read count) y no se interrumpa justo entre la modificacion y el if
-
-    int rc = 0;
 
     char data[LINESIZE];
 
