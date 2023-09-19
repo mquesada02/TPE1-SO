@@ -20,7 +20,6 @@ int main(int argc, char* argv[]){
     shmADT buffer = NULL;
     char shm_name[LINESIZE];
     if (argc == 1) {
-        size_t size;
         read(STDIN_FILENO,shm_name,LINESIZE);
         buffer = createSHM(shm_name);
     } else {
