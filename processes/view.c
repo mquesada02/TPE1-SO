@@ -1,3 +1,5 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +10,7 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <semaphore.h>
-#include "shmADT.h"
+#include "../headers/shmADT.h"
 
 #define PARAMETROS 1 
 #define LINESIZE 100
@@ -20,7 +22,8 @@ int main(int argc, char* argv[]){ //los parametros son el nombre de la memoria c
         perror("Error accessing shared memory");
         exit(ERROR);
     }
-    sem_t * write_count = sem_open(SEM_WC, 0);
+    //sem_t * write_count = sem_open(SEM_WC, 0);
+    
     //sem_t * mutex = sem_open(SEM_MUTEX, 0);
     //sem_t * mutex_rc = 1; //para que un read a la vez modifique rc (read count) y no se interrumpa justo entre la modificacion y el if
 
@@ -35,11 +38,11 @@ int main(int argc, char* argv[]){ //los parametros son el nombre de la memoria c
     //procesos quieran leer a la vez o dos quieran escribir a la vez, porque estarian levantando
     //o escribiendo con el puntero informacion intercalada (aunque en este caso hay solo un proceso
     //que escribe y uno que lee, por lo que el problema no se generaria)
-    while (get_files_left){ //hay solo un proceso que lee de la shm, entonces no habria problemas de intercalacion creeria
-        sem_wait(write_count);
-        read_data(buffer, data);
-        printf("%s", data);
-        file_read();
+    setvbuf(stdout,NULL,_IONBF,SHM_SIZE);
+    while (get_files_left(buffer)){ //hay solo un proceso que lee de la shm, entonces no habria problemas de intercalacion creeria
+        //read_data(buffer, data);
+        printf("%s\n", data);
+        file_read(buffer);
     }
 
     return 0;

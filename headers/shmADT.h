@@ -1,4 +1,4 @@
-#define SHM_SIZE 1024
+#define SHM_SIZE 4096
 #define SEM_WC "/semaphore_wc"
 //#define SEM_MUTEX "/semaphore_mutex"
 

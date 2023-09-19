@@ -1,15 +1,21 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include <stdio.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <semaphore.h>
 #include "../headers/shmADT.h"
 
+static int write_offset = 0;
+static int read_offset = 0;
 typedef struct shmCDT{
     char * shm_name;
     int amount_files;
     char shm[SHM_SIZE];
     int shm_fd;
+    sem_t * write_count;
 } shmCDT;
 
 shmADT createSHM(char* shm_name){
@@ -18,7 +24,8 @@ shmADT createSHM(char* shm_name){
     shmADT toReturn = mmap(NULL, sizeof(shmCDT), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     toReturn->shm_fd = shm_fd;
     toReturn->shm_name = shm_name;
-    //toReturn->amount_files = 0; //para que si llegara a por alguna razon intentar leer antes de que se dijera la cantidad de files no lea cualquier cosa
+    toReturn->amount_files = 0; //para que si llegara a por alguna razon intentar leer antes de que se dijera la cantidad de files no lea cualquier cosa
+    toReturn->write_count = sem_open(SEM_WC, O_CREAT, S_IRWXG, 0);
     return toReturn;
 }
 
@@ -28,9 +35,10 @@ shmADT openSHM(char* shm_name){
 }
 
 int closeSHM(shmADT buffer){
-    //no se como o si se puede cerrar el fd de la shm 
     shm_unlink(buffer->shm_name);
     close(buffer->shm_fd);
+    sem_close(buffer->write_count);
+    sem_unlink(SEM_WC);
     return munmap(buffer, SHM_SIZE);
 }
 
@@ -47,7 +55,6 @@ int get_files_left(shmADT buffer){
 }
 
 void write_data(shmADT buffer, char* data){ //data es un string null terminated
-    static char write_offset = 0;
     while (*data){
         *(buffer->shm + write_offset) = *data;
         data++;
@@ -55,10 +62,11 @@ void write_data(shmADT buffer, char* data){ //data es un string null terminated
     }
     *(buffer->shm + write_offset) = '\0';
     write_offset++;
+    sem_post(buffer->write_count);
 }
 
 void read_data(shmADT buffer, char* data){
-    static char read_offset = 0;
+    sem_wait(buffer->write_count);
     while (*(buffer->shm + read_offset)){
         *data = *(buffer->shm + read_offset);
         data++;

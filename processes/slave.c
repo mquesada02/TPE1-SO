@@ -1,3 +1,5 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,30 +16,41 @@
 
 int main(int argc, char* argv[]) {
     FILE * stream = NULL;
-    char buffer[BUFFER_MAX_SIZE];
-    char pidbuff[MAX_PID_LEN] = " - "; // empiezo a escribir en la posición 3 (zero indexed)
+    char * fileName = NULL;
+    char md5Buffer[MD5_LEN + 1];
+    char outBuffer[BUFFER_MAX_SIZE];
     int len = 0;
     char cmd[MAX_FILE_LEN] = "md5sum ";
-    int j;
-    while((len = read(STDIN_FILENO,buffer,BUFFER_MAX_SIZE))) {
-        for(j=0;buffer[j] && MD5SUM_LEN+j < MAX_FILE_LEN; j++) {
-            cmd[MD5SUM_LEN+j] = buffer[j];
-        }
-        cmd[MD5SUM_LEN+j] = '\0';
-        buffer[j++] = ' ';
-        buffer[j++] = '-';
-        buffer[j++] = ' ';
-        buffer[j] = '\0';
-        // en pipebuff + j * sizeof(char) está la primera posición donde podría guardase el stream
-        strcat(cmd," | cut -b -32");
-        stream = popen(cmd,"r");   
-        fgets(buffer+j*sizeof(char),MD5_LEN+1,stream);
+    ssize_t size;
+    while ((len = getline(&fileName, &size, stdin)) != EOF) {
+
+        fileName[len-1] = '\0';
+
+        // {fileName} - {md5hash} - {pid}
+        // %s - %s - %d
+        
+        // md5sum {fileName} | cut -b -32
+        
+        char buff[BUFFER_MAX_SIZE] = "";
+        strcat(buff,cmd);
+        strcat(buff, fileName);
+        strcat(buff," | cut -b -32");
+        
+        stream = popen(buff,"r");   
+        md5Buffer[MD5_LEN] = '\0';
+        fgets(md5Buffer,MD5_LEN+1,stream);
+        
         pclose(stream);
+        
+
         // como termina en '\n', el fgets agrega un '\0' en la última posición
         // por lo tanto, el '\0' está en la posición (j+33) de buffer
-        sprintf(pidbuff+3,"%d\n",getpid());
-        strcat(buffer,pidbuff);
-        write(STDOUT_FILENO, buffer,strlen(buffer));
+        len = sprintf(outBuffer,"%s - %s - %d\n",fileName,md5Buffer,getpid());
+        write(STDOUT_FILENO, outBuffer,len);
+        free(fileName);
+        fileName = NULL;
     }
+    
     return 0;
 }
+
