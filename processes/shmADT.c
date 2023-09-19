@@ -1,27 +1,36 @@
+#include <stdio.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include "shmADT.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include "../headers/shmADT.h"
 
 typedef struct shmCDT{
+    char * shm_name;
     int amount_files;
-    char shm[SMH_SIZE];
+    char shm[SHM_SIZE];
+    int shm_fd;
 } shmCDT;
 
 shmADT createSHM(char* shm_name){
     int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, S_IRWXG);
     ftruncate(shm_fd, sizeof(shmCDT));
     shmADT toReturn = mmap(NULL, sizeof(shmCDT), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    toReturn->amount_files = 0; //para que si llegara a por alguna razon intentar leer antes de que se dijera la cantidad de files no lea cualquier cosa
+    toReturn->shm_fd = shm_fd;
+    toReturn->shm_name = shm_name;
+    //toReturn->amount_files = 0; //para que si llegara a por alguna razon intentar leer antes de que se dijera la cantidad de files no lea cualquier cosa
     return toReturn;
 }
 
-shmADT openSHM(char*shm_name){
+shmADT openSHM(char* shm_name){
     int shm_fd = shm_open(shm_name, O_RDWR, S_IRWXG);
     return mmap(NULL, sizeof(shmCDT), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
 }
 
-int closeSHM(char* buffer){
+int closeSHM(shmADT buffer){
     //no se como o si se puede cerrar el fd de la shm 
+    shm_unlink(buffer->shm_name);
+    close(buffer->shm_fd);
     return munmap(buffer, SHM_SIZE);
 }
 

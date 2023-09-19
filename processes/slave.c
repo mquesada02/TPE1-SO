@@ -20,7 +20,6 @@ int main(int argc, char* argv[]) {
     char cmd[MAX_FILE_LEN] = "md5sum ";
     int j;
     while((len = read(STDIN_FILENO,buffer,BUFFER_MAX_SIZE))) {
-        write(STDERR_FILENO,buffer,len+1);
         for(j=0;buffer[j] && MD5SUM_LEN+j < MAX_FILE_LEN; j++) {
             cmd[MD5SUM_LEN+j] = buffer[j];
         }
@@ -39,7 +38,6 @@ int main(int argc, char* argv[]) {
         sprintf(pidbuff+3,"%d\n",getpid());
         strcat(buffer,pidbuff);
         write(STDOUT_FILENO, buffer,strlen(buffer));
-        
     }
     return 0;
 }
