@@ -1,36 +1,41 @@
 // This is a personal academic project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include <string.h>
 #include "../headers/shmADT.h"
 
-static int write_offset = 0;
-static int read_offset = 0;
+int write_offset = 0;
+int read_offset = 0;
 typedef struct shmCDT{
-    char * shm_name;
-    int amount_files;
     char shm[SHM_SIZE];
+    int amount_files;
+    char * shm_name;
     int shm_fd;
     sem_t * write_count;
 } shmCDT;
 
 shmADT createSHM(char* shm_name){
-    int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, S_IRWXG);
-    ftruncate(shm_fd, sizeof(shmCDT));
+    int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, 0777);
+    if (ftruncate(shm_fd, sizeof(shmCDT))== -1) {
+        perror("FTruncate error");
+        exit(-1);
+    }
     shmADT toReturn = mmap(NULL, sizeof(shmCDT), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     toReturn->shm_fd = shm_fd;
     toReturn->shm_name = shm_name;
-    toReturn->amount_files = 0; //para que si llegara a por alguna razon intentar leer antes de que se dijera la cantidad de files no lea cualquier cosa
-    toReturn->write_count = sem_open(SEM_WC, O_CREAT, S_IRWXG, 0);
+    toReturn->amount_files = 1;
+    toReturn->write_count = sem_open(SEM_WC, O_CREAT, S_IRWXU, 0);
     return toReturn;
 }
 
 shmADT openSHM(char* shm_name){
-    int shm_fd = shm_open(shm_name, O_RDWR, S_IRWXG);
+    int shm_fd = shm_open(shm_name, O_RDWR, 0777);
     return mmap(NULL, sizeof(shmCDT), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
 }
 
@@ -55,24 +60,11 @@ int get_files_left(shmADT buffer){
 }
 
 void write_data(shmADT buffer, char* data){ //data es un string null terminated
-    while (*data){
-        *(buffer->shm + write_offset) = *data;
-        data++;
-        write_offset++; //habria que lanzar un error si se pasa del tamaño (?
-    }
-    *(buffer->shm + write_offset) = '\0';
-    write_offset++;
-    sem_post(buffer->write_count);
+    write_offset += sprintf(buffer->shm+write_offset, "%s", data) + 1;
 }
 
-void read_data(shmADT buffer, char* data){
-    sem_wait(buffer->write_count);
-    while (*(buffer->shm + read_offset)){
-        *data = *(buffer->shm + read_offset);
-        data++;
-        read_offset++;
-    }
-    *data = '\0';
-    read_offset++;
+void read_data(shmADT buffer){
+    int len = strlen(buffer->shm+read_offset);
+    printf("%s\n", buffer->shm+read_offset);
+    read_offset += len+1;
 }
-

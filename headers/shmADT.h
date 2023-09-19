@@ -1,6 +1,5 @@
 #define SHM_SIZE 4096
 #define SEM_WC "/semaphore_wc"
-//#define SEM_MUTEX "/semaphore_mutex"
 
 typedef struct shmCDT* shmADT;
 
@@ -23,7 +22,7 @@ el separador para la informacion escrita en el buffer es 0
 void write_data(shmADT buffer, char* data);
 
 /*
-recibe como argumento la direccion del buffer de la shm y un puntero a donde guardar la informacion leida
-la guarda como un string null-terminated
+recibe como argumento la direccion del buffer de la shm, lee de la shared memory el string al que se esta apuntando, 
+e imprime en salida estandar lo que leyo
 */
-void read_data(shmADT buffer, char* data); 
+void read_data(shmADT buffer); 

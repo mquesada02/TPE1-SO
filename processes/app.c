@@ -17,7 +17,7 @@
 
 #define SHM_NAME "/app_view_shm"
 #define SHM_LEN 14
-#define DEV_SHM_SHM_LEN (SHM_LEN + 15)
+#define DEV_SHM_LEN (SHM_LEN + 15)
 
 typedef struct pipefd {
         int slaveREADPipeFDs[2];
@@ -37,33 +37,18 @@ void createSlave(int slaveID, pipefd * slaves);
 void createSlaves(int numberOfSlaves, pipefd * slaves);
 
 int main(int argc, char* argv[]) {
-
-    char initSHM[DEV_SHM_SHM_LEN];
+    char initSHM[DEV_SHM_LEN];
     sprintf(initSHM,"rm -f /dev/shm/%s",SHM_NAME);
-    system(initSHM);                                // in case of segv or process abort
+    system(initSHM);
 
-    shmADT buffer = createSHM(SHM_NAME);
+    sem_t * write_count = sem_open(SEM_WC,O_CREAT,0777,0);
 
-    if (buffer == MAP_FAILED) {
-        perror("Error creating shared memory");
-        closeSHM(buffer);
-        exit(ERROR);
-    }
+    int filesToProcess = argc-1;
+    int numberOfSlaves = filesToProcess/SLAVE_INITIAL_CAPACITY;
 
-    //sem_t * write_count = sem_open(SEM_WC, O_CREAT, S_IRWXG, 0);
-    
-    
-    //sem_t * mutex = sem_open(SEM_MUTEX, O_CREAT, S_IRWXG, 1);
+    write(STDOUT_FILENO, SHM_NAME,SHM_LEN);
 
     sleep(2);
-
-    printf("%s\n", SHM_NAME); //lo envio a la salida estandr -> view lo recibe por pipe, o por argumento
-                            
-
-    int filesToProcess = argc-1;                    // cantidad de archivos
-    int numberOfSlaves = filesToProcess/SLAVE_INITIAL_CAPACITY;        // número elegido arbitrariamente
-
-    set_file_amount(buffer, filesToProcess);
 
     pipefd slaves[numberOfSlaves];
 
@@ -71,7 +56,7 @@ int main(int argc, char* argv[]) {
     
     FD_ZERO(&md5Ready);
 
-    createSlaves(numberOfSlaves,slaves); // crea y conecta los slaves necesarios
+    createSlaves(numberOfSlaves,slaves); //crea y conecta los slaves necesarios
 
     FILE * output = fopen("./output.txt","w");// abro el archivo del output
     if (output==NULL) {
@@ -95,6 +80,11 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    shmADT buffer = openSHM(SHM_NAME);
+    if(buffer != MAP_FAILED) {
+        set_file_amount(buffer, filesToProcess);
+    }
+                   
     int filesProcessed = 0;
 
     while(filesProcessed<filesToProcess) { // hasta que se escribieron todos los files
@@ -116,9 +106,10 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 fputs(md5buffer,output);
-                
-                write_data(buffer,md5buffer);
-
+                if(buffer != MAP_FAILED) {
+                    write_data(buffer,md5buffer);
+                    sem_post(write_count);
+                }
                 if (argvIndex <= filesToProcess) {
                     dprintf(slaves[slaveID].slaveREADPipeFDs[WRITE],"%s\n",argv[argvIndex]);
                     argvIndex++;  
@@ -132,12 +123,6 @@ int main(int argc, char* argv[]) {
     for(int slaveID=0;slaveID<numberOfSlaves;slaveID++) {
         close(slaves[slaveID].slaveREADPipeFDs[WRITE]);
         close(slaves[slaveID].slaveREADPipeFDs[READ]);
-    }
-    
-    int close_ret = closeSHM(buffer);
-    if (close_ret < 0){
-        perror("Error cerrando la memoria compartida");
-        exit(ERROR);
     }
 
     return 0;
