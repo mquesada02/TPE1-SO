@@ -45,6 +45,8 @@ int main(int argc, char* argv[]){
         exit(ERROR);
     }
 
+    sem_close(write_count);
+
     return 0;
 }
  

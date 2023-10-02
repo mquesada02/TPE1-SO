@@ -35,6 +35,7 @@ int main(int argc, char* argv[]) {
         free(fileName);
         fileName = NULL;
     }
+    free(fileName);
     
     return 0;
 }

@@ -125,6 +125,8 @@ int main(int argc, char* argv[]) {
         close(slaves[slaveID].slaveREADPipeFDs[READ]);
     }
 
+    sem_close(write_count);
+
     return 0;
 }
 
